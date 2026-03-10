@@ -1,0 +1,48 @@
+{
+    // Wild: trusted task bundle verification in Tekton provenance
+    id: wild-policy
+    version: "1"
+
+    policies: [
+        {
+            id: trusted-tasks
+            version: v0.0.1
+
+            meta: {
+                description: "Verify every Tekton task bundle is in the approved allowlist"
+                runtime: cel@v0
+            }
+
+            context: {
+                values: {
+                    // Approved task bundle prefixes
+                    allowed_bundle_prefix: {
+                        type: string
+                        required: true
+                        default: "quay.io/konflux-ci/tekton-catalog/"
+                    }
+                }
+            }
+
+            tenets: [
+                {
+                    // Verify all tasks reference approved bundles
+                    id: all-tasks-trusted
+                    runtime: cel@v0
+                    code: '''
+                        predicates.exists(p,
+                            p.data.buildConfig.tasks.all(task,
+                                has(task.ref) && has(task.ref.bundle) &&
+                                task.ref.bundle.startsWith(context.allowed_bundle_prefix)
+                            )
+                        )
+                    '''
+
+                    predicates: {
+                        types: [https://slsa.dev/provenance/v0.2]
+                    }
+                }
+            ]
+        }
+    ]
+}

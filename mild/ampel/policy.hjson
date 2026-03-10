@@ -1,0 +1,54 @@
+{
+    // Mild: presence, signer identity, and SLSA level checks
+    id: mild-policy
+    version: "1"
+
+    policies: [
+        {
+            id: provenance-and-level
+            version: v0.0.1
+
+            meta: {
+                description: "Verify SLSA provenance presence, signer identity, and VSA level for GitHub Actions builds"
+                runtime: cel@v0
+            }
+
+            // Verify the artifact was signed by the expected GitHub Actions workflow
+            identities: [
+                {
+                    type: exact
+                    issuer: https://token.actions.githubusercontent.com
+                    // Replace with your workflow identity
+                    identity: https://github.com/my-org/my-repo/.github/workflows/build.yml@refs/heads/main
+                }
+            ]
+
+            tenets: [
+                {
+                    // Check that a SLSA provenance attestation is present
+                    id: provenance-present
+                    runtime: cel@v0
+                    code: "size(predicates) > 0"
+
+                    predicates: {
+                        types: [https://slsa.dev/provenance/v1]
+                    }
+                }
+                {
+                    // Check that a VSA declares at least SLSA Build Level 1
+                    id: vsa-meets-slsa-level
+                    runtime: cel@v0
+                    code: '''
+                        predicates.exists(p,
+                            p.data.verifiedLevels.exists(l, l == "SLSA_BUILD_LEVEL_1")
+                        )
+                    '''
+
+                    predicates: {
+                        types: [https://slsa.dev/verification_summary/v1]
+                    }
+                }
+            ]
+        }
+    ]
+}

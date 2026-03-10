@@ -1,0 +1,36 @@
+# Sample EnterpriseContractPolicy for the Medium level.
+#
+# Builds on Mild by adding provenance content inspection and SBOM checks.
+# Uses standard SLSA v1.0 provenance fields (builder-agnostic).
+#
+# Usage:
+#   ec validate image \
+#     --image <IMAGE_REF> \
+#     --policy medium/conforma/policy.yaml
+apiVersion: appstudio.redhat.com/v1alpha1
+kind: EnterpriseContractPolicy
+metadata:
+  name: medium-policy
+spec:
+  description: >-
+    Medium level: provenance content inspection, SBOM presence,
+    and VSA/SVR production for downstream enforcement.
+  sources:
+    - name: Medium Checks
+      policy:
+        - oci::quay.io/conforma/release-policy:latest
+        - github.com/arewm/mild-to-wild-samples//mild/conforma?ref=main
+        - github.com/arewm/mild-to-wild-samples//medium/conforma?ref=main
+      ruleData:
+        allowed_gh_workflow_repos:
+          - "my-org/my-repo"
+      config:
+        include:
+          # Mild rules (build on the previous level)
+          - github_certificate.gh_workflow_repository
+          - github_certificate.gh_workflow_extensions
+          - mild.provenance_present
+          - mild.vsa_meets_slsa_level
+          # Medium rules
+          - medium.trusted_source_branch
+          - medium.sbom_present

@@ -1,0 +1,40 @@
+# Sample EnterpriseContractPolicy for the Wild level.
+#
+# Builds on Medium by adding trusted task bundle verification.
+# This level is Tekton-specific: it inspects Tekton Chains provenance
+# to verify every task used a pinned, trusted bundle.
+#
+# Usage:
+#   ec validate image \
+#     --image <IMAGE_REF> \
+#     --policy wild/conforma/policy.yaml
+apiVersion: appstudio.redhat.com/v1alpha1
+kind: EnterpriseContractPolicy
+metadata:
+  name: wild-policy
+spec:
+  description: >-
+    Wild level: trusted task bundle verification in Tekton provenance.
+    Closes the provenance loop by verifying every task is a known,
+    pinned bundle.
+  publicKey: 'k8s://tekton-pipelines/public-key'
+  sources:
+    - name: Wild Checks
+      policy:
+        - oci::quay.io/conforma/release-policy:latest
+        - github.com/arewm/mild-to-wild-samples//mild/conforma?ref=main
+        - github.com/arewm/mild-to-wild-samples//medium/conforma?ref=main
+        - github.com/arewm/mild-to-wild-samples//wild/conforma?ref=main
+      data:
+        # Trusted task bundle data -- lists approved Tekton task bundles
+        - oci::quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles:latest
+      config:
+        include:
+          # Mild rules
+          - mild.provenance_present
+          - mild.vsa_meets_slsa_level
+          # Medium rules
+          - medium.trusted_source_branch
+          - medium.sbom_present
+          # Wild rules
+          - wild.all_tasks_trusted

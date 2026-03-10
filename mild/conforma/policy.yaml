@@ -1,0 +1,40 @@
+# Sample EnterpriseContractPolicy for the Mild level.
+#
+# Composes three policy sources:
+#   1. github_certificate -- verifies the Fulcio certificate from GHA Sigstore signing
+#   2. mild -- provenance presence and VSA SLSA level checks
+#
+# The CLI verifies cryptographic signature validity before policy evaluation.
+# These rules check *identity* (who signed) and *content* (what level).
+#
+# Usage:
+#   ec validate image \
+#     --image <IMAGE_REF> \
+#     --policy mild/conforma/policy.yaml
+apiVersion: appstudio.redhat.com/v1alpha1
+kind: EnterpriseContractPolicy
+metadata:
+  name: mild-policy
+spec:
+  description: >-
+    Mild level: presence checks, signer identity, and SLSA level.
+    For OCI artifacts built on GitHub Actions with Sigstore signing.
+  sources:
+    - name: Mild Checks
+      policy:
+        # The github_certificate package checks Fulcio certificate extensions
+        # (workflow repository, ref, trigger) from GitHub Actions Sigstore signing.
+        - oci::quay.io/conforma/release-policy:latest
+        # Our custom mild rules: provenance present + VSA SLSA level
+        - github.com/arewm/mild-to-wild-samples//mild/conforma?ref=main
+      ruleData:
+        # Restrict which GitHub repos are allowed to sign artifacts
+        allowed_gh_workflow_repos:
+          - "my-org/my-repo"
+      config:
+        include:
+          # Include only the rules relevant to the mild level
+          - github_certificate.gh_workflow_repository
+          - github_certificate.gh_workflow_extensions
+          - mild.provenance_present
+          - mild.vsa_meets_slsa_level
