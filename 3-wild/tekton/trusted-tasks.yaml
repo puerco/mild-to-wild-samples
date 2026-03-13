@@ -1,0 +1,25 @@
+# Trusted task references for wild-level policy verification.
+#
+# When using a git resolver (rather than OCI bundles), tasks are identified
+# by their git repository URL, path, and commit SHA. This file lists the
+# approved references that the wild-level policy will verify against.
+#
+# Usage with the git resolver:
+#   taskRef:
+#     resolver: git
+#     params:
+#       - name: url
+#         value: https://github.com/arewm/mild-to-wild-samples
+#       - name: revision
+#         value: <commit-sha>
+#       - name: pathInRepo
+#         value: 3-wild/tekton/tasks/build-and-push/0.1/build-and-push.yaml
+#
+# After committing changes to this repo, update the entries below with
+# the new commit SHA to keep the trusted references current.
+trusted_tasks:
+  - name: build-and-push
+    repository: https://github.com/arewm/mild-to-wild-samples
+    path: 3-wild/tekton/tasks/build-and-push/0.1/build-and-push.yaml
+    # Update this SHA after each commit that modifies the task
+    revision: "TBD"

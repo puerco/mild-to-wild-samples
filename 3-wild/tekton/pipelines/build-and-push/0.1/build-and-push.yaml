@@ -1,0 +1,127 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: build-and-push
+  labels:
+    app.kubernetes.io/version: "0.1"
+spec:
+  description: >-
+    Build and push a container image from a git repository.
+    Wraps the build-and-push Task and propagates results for
+    Tekton Chains provenance generation.
+  params:
+    - name: IMAGE
+      description: Fully qualified image reference to push to.
+      type: string
+    - name: CONTAINERFILE
+      description: Path to the Containerfile relative to the source root.
+      type: string
+      default: "./Containerfile"
+    - name: CONTEXT
+      description: Path to the build context relative to the source root.
+      type: string
+      default: "."
+    - name: SOURCE_URL
+      description: Git repository URL to clone.
+      type: string
+    - name: SOURCE_REF
+      description: Git reference to checkout.
+      type: string
+      default: "main"
+  results:
+    - name: IMAGE_URL
+      value: $(tasks.build.results.IMAGE_URL)
+    - name: IMAGE_DIGEST
+      value: $(tasks.build.results.IMAGE_DIGEST)
+    - name: CHAINS-GIT_URL
+      value: $(tasks.build.results.CHAINS-GIT_URL)
+    - name: CHAINS-GIT_COMMIT
+      value: $(tasks.build.results.CHAINS-GIT_COMMIT)
+  tasks:
+    - name: build
+      taskSpec:
+        # Inline the task spec here so we don't need a separate Task
+        # object on the cluster. For git resolver usage, the task YAML
+        # in this repo serves as the canonical definition.
+        metadata: {}
+        params:
+          - name: IMAGE
+            type: string
+          - name: CONTAINERFILE
+            type: string
+            default: "./Containerfile"
+          - name: CONTEXT
+            type: string
+            default: "."
+          - name: SOURCE_URL
+            type: string
+          - name: SOURCE_REF
+            type: string
+            default: "main"
+        results:
+          - name: IMAGE_URL
+          - name: IMAGE_DIGEST
+          - name: CHAINS-GIT_URL
+          - name: CHAINS-GIT_COMMIT
+        steps:
+          - name: clone
+            image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              git config --global --add safe.directory /workspace/source
+              git clone "$(params.SOURCE_URL)" /workspace/source
+              cd /workspace/source
+              git checkout "$(params.SOURCE_REF)"
+              COMMIT=$(git rev-parse HEAD)
+              echo -n "$(params.SOURCE_URL)" > "$(results.CHAINS-GIT_URL.path)"
+              echo -n "$COMMIT" > "$(results.CHAINS-GIT_COMMIT.path)"
+            volumeMounts:
+              - name: source
+                mountPath: /workspace/source
+          - name: build-and-push
+            image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
+            script: |
+              #!/usr/bin/env bash
+              set -euo pipefail
+              cd /workspace/source
+
+              buildah --storage-driver=vfs bud \
+                --format oci \
+                --no-cache \
+                -f "$(params.CONTAINERFILE)" \
+                -t "$(params.IMAGE)" \
+                "$(params.CONTEXT)"
+
+              buildah --storage-driver=vfs push \
+                --digestfile /tmp/image-digest \
+                "$(params.IMAGE)"
+
+              DIGEST=$(cat /tmp/image-digest)
+              echo -n "$(params.IMAGE)" > "$(results.IMAGE_URL.path)"
+              echo -n "$DIGEST" > "$(results.IMAGE_DIGEST.path)"
+            volumeMounts:
+              - name: source
+                mountPath: /workspace/source
+              - name: varlibcontainers
+                mountPath: /var/lib/containers
+            securityContext:
+              capabilities:
+                add:
+                  - SETFCAP
+        volumes:
+          - name: source
+            emptyDir: {}
+          - name: varlibcontainers
+            emptyDir: {}
+      params:
+        - name: IMAGE
+          value: $(params.IMAGE)
+        - name: CONTAINERFILE
+          value: $(params.CONTAINERFILE)
+        - name: CONTEXT
+          value: $(params.CONTEXT)
+        - name: SOURCE_URL
+          value: $(params.SOURCE_URL)
+        - name: SOURCE_REF
+          value: $(params.SOURCE_REF)

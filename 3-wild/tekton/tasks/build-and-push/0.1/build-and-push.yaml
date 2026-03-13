@@ -1,0 +1,92 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: build-and-push
+  labels:
+    app.kubernetes.io/version: "0.1"
+  annotations:
+    tekton.dev/pipelines.minVersion: "0.50.0"
+    tekton.dev/tags: image-build
+spec:
+  description: >-
+    Clone a git repository and build+push a container image using buildah.
+    Outputs results for Tekton Chains provenance generation.
+  params:
+    - name: IMAGE
+      description: Fully qualified image reference to push to.
+      type: string
+    - name: CONTAINERFILE
+      description: Path to the Containerfile relative to the source root.
+      type: string
+      default: "./Containerfile"
+    - name: CONTEXT
+      description: Path to the build context relative to the source root.
+      type: string
+      default: "."
+    - name: SOURCE_URL
+      description: Git repository URL to clone.
+      type: string
+    - name: SOURCE_REF
+      description: Git reference to checkout.
+      type: string
+      default: "main"
+  results:
+    - name: IMAGE_URL
+      description: Fully qualified image reference that was pushed.
+    - name: IMAGE_DIGEST
+      description: Digest of the pushed image.
+    - name: CHAINS-GIT_URL
+      description: Source repository URL (for Chains provenance).
+    - name: CHAINS-GIT_COMMIT
+      description: Source commit SHA (for Chains provenance).
+  steps:
+    - name: clone
+      image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        git config --global --add safe.directory /workspace/source
+        git clone "$(params.SOURCE_URL)" /workspace/source
+        cd /workspace/source
+        git checkout "$(params.SOURCE_REF)"
+        COMMIT=$(git rev-parse HEAD)
+        echo -n "$(params.SOURCE_URL)" > "$(results.CHAINS-GIT_URL.path)"
+        echo -n "$COMMIT" > "$(results.CHAINS-GIT_COMMIT.path)"
+      volumeMounts:
+        - name: source
+          mountPath: /workspace/source
+    - name: build-and-push
+      image: quay.io/konflux-ci/task-runner:1.5.0@sha256:200019314a50be5b6dd06f362c794c92a700583a522c5eee9a41e3eab7f706c5
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        cd /workspace/source
+
+        buildah --storage-driver=vfs bud \
+          --format oci \
+          --no-cache \
+          -f "$(params.CONTAINERFILE)" \
+          -t "$(params.IMAGE)" \
+          "$(params.CONTEXT)"
+
+        buildah --storage-driver=vfs push \
+          --digestfile /tmp/image-digest \
+          "$(params.IMAGE)"
+
+        DIGEST=$(cat /tmp/image-digest)
+        echo -n "$(params.IMAGE)" > "$(results.IMAGE_URL.path)"
+        echo -n "$DIGEST" > "$(results.IMAGE_DIGEST.path)"
+      volumeMounts:
+        - name: source
+          mountPath: /workspace/source
+        - name: varlibcontainers
+          mountPath: /var/lib/containers
+      securityContext:
+        capabilities:
+          add:
+            - SETFCAP
+  volumes:
+    - name: source
+      emptyDir: {}
+    - name: varlibcontainers
+      emptyDir: {}

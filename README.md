@@ -52,6 +52,20 @@ export CONFORMA_CLI_PATH=/path/to/conforma-cli
 ./test_policy.sh wild
 ```
 
+## Build Infrastructure (Wild level)
+
+The `3-wild/` directory includes a sample Tekton Task and Pipeline for building
+and pushing container images. These demonstrate the trusted task verification
+that the Wild-level policies enforce.
+
+- **Task**: `3-wild/tekton/tasks/build-and-push/0.1/build-and-push.yaml`
+- **Pipeline**: `3-wild/tekton/pipelines/build-and-push/0.1/build-and-push.yaml`
+- **Trusted refs**: `3-wild/tekton/trusted-tasks.yaml`
+
+The Pipeline uses an inline `taskSpec` for self-contained execution. The
+standalone Task definition serves as the canonical reference for git resolver
+usage and policy verification.
+
 ## Key Takeaway
 
 Policy engines are interchangeable because attestation standards are open
