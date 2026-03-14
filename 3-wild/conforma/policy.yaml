@@ -29,7 +29,7 @@ spec:
         # Trusted task bundle data for PipelineRun provenance
         - oci::quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles:latest
         # Trusted task refs for TaskRun provenance (git resolver)
-        - github.com/arewm/mild-to-wild-samples//3-wild/tekton?ref=main
+        - github.com/arewm/mild-to-wild-samples//3-wild/conforma/data?ref=main
       ruleData:
         allowed_builder_ids:
           - "https://github.com/arewm/mild-to-wild-samples/tekton-build"
