@@ -187,6 +187,24 @@ spec:
 
         POLICY_URI="$(params.POLICY)"
 
+        # Extract base image from OCI manifest annotations
+        # Use digest-only form to avoid tag@digest parsing issues
+        IMAGE_BY_DIGEST="${IMAGE_URL%%:*}@${IMAGE_DIGEST}"
+        BASE_NAME=$(skopeo inspect --raw "docker://${IMAGE_BY_DIGEST}" \
+          | jq -r '.annotations["org.opencontainers.image.base.name"] // empty')
+        BASE_DIGEST=$(skopeo inspect --raw "docker://${IMAGE_BY_DIGEST}" \
+          | jq -r '.annotations["org.opencontainers.image.base.digest"] // empty')
+
+        # Build dependencies array from base image if available
+        DEPS="[]"
+        if [[ -n "$BASE_NAME" && -n "$BASE_DIGEST" ]]; then
+          DEPS=$(jq -n \
+            --arg uri "$BASE_NAME" \
+            --arg digest "$BASE_DIGEST" \
+            '[{uri: $uri, digest: {sha256: ($digest | ltrimstr("sha256:"))}}]')
+          echo "Found base image: ${BASE_NAME}@${BASE_DIGEST}"
+        fi
+
         # Build the SLSA VSA predicate
         # cosign attest wraps this in an in-toto statement
         jq -n \
@@ -196,6 +214,7 @@ spec:
           --arg resource_uri "${IMAGE_URL}@${IMAGE_DIGEST}" \
           --arg policy_uri "$POLICY_URI" \
           --arg level "$LEVEL" \
+          --argjson deps "$DEPS" \
           '{
             verifier: {
               id: $verifier_id,
@@ -206,6 +225,9 @@ spec:
             policy: { uri: $policy_uri },
             verificationResult: "PASSED",
             verifiedLevels: [$level],
+            dependencyLevels: (if ($deps | length) > 0 then
+              [$deps[] | {uri: .uri, digest: .digest}]
+            else null end),
             slsaVersion: "1.0"
           }' > /tmp/work/vsa-predicate.json
 

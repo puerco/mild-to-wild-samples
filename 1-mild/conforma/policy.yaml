@@ -1,40 +1,52 @@
 # Sample EnterpriseContractPolicy for the Mild level.
 #
-# Composes three policy sources:
-#   1. github_certificate -- verifies the Fulcio certificate from GHA Sigstore signing
-#   2. mild -- provenance presence and VSA SLSA level checks
+# Verifies SLSA provenance properties of a signed image:
+#   1. Provenance present and build type accepted
+#   2. Builder identity matches allowed list
+#   3. Source materials are version-controlled git repos
+#   4. External parameters are restricted (no shared volumes)
 #
-# The CLI verifies cryptographic signature validity before policy evaluation.
-# These rules check *identity* (who signed) and *content* (what level).
+# Signature verification is performed by the CLI before policy evaluation.
 #
 # Usage:
 #   ec validate image \
 #     --image <IMAGE_REF> \
-#     --policy 1-mild/conforma/policy.yaml
+#     --policy 1-mild/conforma/policy.yaml \
+#     --public-key <KEY>
 apiVersion: appstudio.redhat.com/v1alpha1
 kind: EnterpriseContractPolicy
 metadata:
   name: mild-policy
 spec:
   description: >-
-    Mild level: presence checks, signer identity, and SLSA level.
-    For OCI artifacts built on GitHub Actions with Sigstore signing.
+    Mild level: verify signature, builder identity, canonical source,
+    build type, and external parameters from SLSA provenance.
   sources:
     - name: Mild Checks
       policy:
-        # The github_certificate package checks Fulcio certificate extensions
-        # (workflow repository, ref, trigger) from GitHub Actions Sigstore signing.
+        # Upstream Conforma release policy (provides SLSA rules)
         - oci::quay.io/conforma/release-policy:latest
-        # Our custom mild rules: provenance present + VSA SLSA level
+        # Custom mild rules: provenance present + build type check
         - github.com/arewm/mild-to-wild-samples//1-mild/conforma?ref=main
       ruleData:
-        # Restrict which GitHub repos are allowed to sign artifacts
-        allowed_gh_workflow_repos:
-          - "my-org/my-repo"
+        # Accepted builder IDs for SLSA provenance
+        allowed_builder_ids:
+          - "https://github.com/arewm/mild-to-wild-samples/tekton-build"
+          - "https://tekton.dev/chains/v2"
+        # Accepted build types
+        allowed_build_types:
+          - "https://tekton.dev/chains/v2/slsa"
       config:
         include:
-          # Include only the rules relevant to the mild level
-          - github_certificate.gh_workflow_repository
-          - github_certificate.gh_workflow_extensions
+          # Custom mild rules
           - mild.provenance_present
-          - mild.vsa_meets_slsa_level
+          - mild.build_type_accepted
+          # Upstream SLSA rules: builder identity
+          - slsa_build_build_service.slsa_builder_id_found
+          - slsa_build_build_service.slsa_builder_id_accepted
+          # Upstream SLSA rules: source provenance
+          - slsa_source_version_controlled.materials_format_okay
+          - slsa_source_version_controlled.materials_uri_is_git_repo
+          - slsa_source_version_controlled.materials_include_git_sha
+          # Upstream SLSA rules: external parameters
+          - external_parameters.restrict_shared_volumes

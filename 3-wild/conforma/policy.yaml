@@ -7,7 +7,8 @@
 # Usage:
 #   ec validate image \
 #     --image <IMAGE_REF> \
-#     --policy 3-wild/conforma/policy.yaml
+#     --policy 3-wild/conforma/policy.yaml \
+#     --public-key <KEY>
 apiVersion: appstudio.redhat.com/v1alpha1
 kind: EnterpriseContractPolicy
 metadata:
@@ -17,7 +18,6 @@ spec:
     Wild level: trusted task bundle verification in Tekton provenance.
     Closes the provenance loop by verifying every task is a known,
     pinned bundle.
-  publicKey: 'k8s://tekton-pipelines/public-key'
   sources:
     - name: Wild Checks
       policy:
@@ -28,11 +28,23 @@ spec:
       data:
         # Trusted task bundle data -- lists approved Tekton task bundles
         - oci::quay.io/konflux-ci/tekton-catalog/data-acceptable-bundles:latest
+      ruleData:
+        allowed_builder_ids:
+          - "https://github.com/arewm/mild-to-wild-samples/tekton-build"
+          - "https://tekton.dev/chains/v2"
+        allowed_build_types:
+          - "https://tekton.dev/chains/v2/slsa"
       config:
         include:
           # Mild rules
           - mild.provenance_present
-          - mild.vsa_meets_slsa_level
+          - mild.build_type_accepted
+          - slsa_build_build_service.slsa_builder_id_found
+          - slsa_build_build_service.slsa_builder_id_accepted
+          - slsa_source_version_controlled.materials_format_okay
+          - slsa_source_version_controlled.materials_uri_is_git_repo
+          - slsa_source_version_controlled.materials_include_git_sha
+          - external_parameters.restrict_shared_volumes
           # Medium rules
           - medium.trusted_source_branch
           - medium.sbom_present

@@ -7,7 +7,7 @@ import data.lib
 # METADATA
 # title: Provenance attestation present
 # description: >-
-#   The artifact must have a SLSA provenance attestation (v0.2 or v1) attached.
+#   The artifact must have a SLSA provenance attestation attached.
 # custom:
 #   short_name: provenance_present
 #   failure_msg: No SLSA provenance attestation found
@@ -21,28 +21,32 @@ deny contains result if {
 	result := lib.result_helper(rego.metadata.chain(), [])
 }
 
-# Signer identity is verified by the github_certificate package from conforma-policy.
-# For GitHub Actions builds, include that package alongside this one to check
-# Fulcio certificate extensions (workflow repository, ref, trigger, etc.).
-# See: https://github.com/conforma/policy/tree/main/policy/release/github_certificate
-
 # METADATA
-# title: VSA meets SLSA Build Level 1
+# title: Build type is accepted
 # description: >-
-#   A Verification Summary Attestation (VSA) must be present and declare
-#   at least SLSA_BUILD_LEVEL_1. VSAs declaring only SLSA_BUILD_LEVEL_0
-#   are rejected.
+#   The provenance buildDefinition.buildType must be in the list of accepted
+#   build types configured via rule_data.allowed_build_types.
 # custom:
-#   short_name: vsa_meets_slsa_level
-#   failure_msg: VSA does not meet SLSA Build Level 1
+#   short_name: build_type_accepted
+#   failure_msg: "Build type %s is not in the list of accepted build types"
 #   solution: >-
-#     Ensure the build meets SLSA Build Level 1 requirements and the VSA
-#     is generated with the appropriate verified levels.
+#     Ensure the build was performed by an accepted build system. Add the build
+#     type to the allowed_build_types rule data if it should be trusted.
 #   collections:
 #   - minimal
 deny contains result if {
-	vsa := input.attestations[_]
-	vsa.statement.predicateType == "https://slsa.dev/verification_summary/v1"
-	not "SLSA_BUILD_LEVEL_1" in vsa.statement.predicate.verifiedLevels
-	result := lib.result_helper(rego.metadata.chain(), [])
+	some att in lib.slsa_provenance_attestations
+	build_type := _build_type(att)
+	allowed := lib.rule_data("allowed_build_types")
+	not build_type in allowed
+	result := lib.result_helper(rego.metadata.chain(), [build_type])
+}
+
+# Extract buildType from either SLSA v0.2 or v1.0
+_build_type(att) := att.statement.predicate.buildType if {
+	att.statement.predicateType == "https://slsa.dev/provenance/v0.2"
+}
+
+_build_type(att) := att.statement.predicate.buildDefinition.buildType if {
+	att.statement.predicateType == "https://slsa.dev/provenance/v1"
 }

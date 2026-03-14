@@ -6,7 +6,8 @@
 # Usage:
 #   ec validate image \
 #     --image <IMAGE_REF> \
-#     --policy 2-medium/conforma/policy.yaml
+#     --policy 2-medium/conforma/policy.yaml \
+#     --public-key <KEY>
 apiVersion: appstudio.redhat.com/v1alpha1
 kind: EnterpriseContractPolicy
 metadata:
@@ -22,15 +23,22 @@ spec:
         - github.com/arewm/mild-to-wild-samples//1-mild/conforma?ref=main
         - github.com/arewm/mild-to-wild-samples//2-medium/conforma?ref=main
       ruleData:
-        allowed_gh_workflow_repos:
-          - "my-org/my-repo"
+        allowed_builder_ids:
+          - "https://github.com/arewm/mild-to-wild-samples/tekton-build"
+          - "https://tekton.dev/chains/v2"
+        allowed_build_types:
+          - "https://tekton.dev/chains/v2/slsa"
       config:
         include:
-          # Mild rules (build on the previous level)
-          - github_certificate.gh_workflow_repository
-          - github_certificate.gh_workflow_extensions
+          # Mild rules
           - mild.provenance_present
-          - mild.vsa_meets_slsa_level
+          - mild.build_type_accepted
+          - slsa_build_build_service.slsa_builder_id_found
+          - slsa_build_build_service.slsa_builder_id_accepted
+          - slsa_source_version_controlled.materials_format_okay
+          - slsa_source_version_controlled.materials_uri_is_git_repo
+          - slsa_source_version_controlled.materials_include_git_sha
+          - external_parameters.restrict_shared_volumes
           # Medium rules
           - medium.trusted_source_branch
           - medium.sbom_present
