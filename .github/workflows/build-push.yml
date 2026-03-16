@@ -4,6 +4,9 @@ on:
   workflow_dispatch: 
   push:
     branches: [main]
+    paths:
+      - '.github/workflows/build-push.yml'
+      - 'Containerfile'
   pull_request:
     branches: [main]
 
