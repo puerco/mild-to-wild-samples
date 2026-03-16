@@ -5,7 +5,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/build-push.yml'
+      - '.github/workflows/build-push.yaml'
       - 'Containerfile'
   pull_request:
     branches: [main]
@@ -43,6 +43,10 @@ jobs:
           tags: latest ${{ github.sha }}
           oci: true
 
+      - name: Install crane
+        if: github.event_name != 'pull_request'
+        uses: imjasonh/setup-crane@v0.4
+
       - name: Install cosign
         if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
@@ -56,6 +60,17 @@ jobs:
           tags: ${{ steps.build.outputs.tags }}
           registry: ghcr.io
 
+      - name: Extract base image reference
+        id: base
+        if: github.event_name != 'pull_request'
+        run: |
+          BASE_REF=$(crane manifest "${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}" | \
+            jq -r '.annotations["org.opencontainers.image.base.name"]')
+          BASE_DIGEST=$(crane manifest "${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}" | \
+            jq -r '.annotations["org.opencontainers.image.base.digest"]')
+          echo "ref=${BASE_REF}" >> "$GITHUB_OUTPUT"
+          echo "digest=${BASE_DIGEST}" >> "$GITHUB_OUTPUT"
+
       - name: Generate SLSA provenance
         id: attest
         if: github.event_name != 'pull_request'
@@ -63,4 +78,25 @@ jobs:
         with:
           subject-name: ${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
-          push-to-registry: true
+          push-to-registry: false
+
+      - name: Add base image to provenance and push attestation
+        if: github.event_name != 'pull_request'
+        run: |
+          # Extract the in-toto statement from the bundle
+          STATEMENT=$(jq '.content.envelope.payload' -r "${{ steps.attest.outputs.bundle-path }}" | base64 -d)
+
+          # Add the base image to resolvedDependencies
+          UPDATED=$(echo "$STATEMENT" | jq \
+            --arg uri "${{ steps.base.outputs.ref }}" \
+            --arg digest "${{ steps.base.outputs.digest }}" \
+            '.predicate.buildDefinition.resolvedDependencies += [{"uri": $uri, "digest": {"sha256": ($digest | ltrimstr("sha256:"))}}]')
+
+          # Write updated statement to file
+          echo "$UPDATED" > /tmp/provenance.json
+
+          # Push the modified attestation with cosign
+          cosign attest --yes --type slsaprovenance \
+            --predicate /tmp/provenance.json \
+            --new-bundle-format \
+            "${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}"
