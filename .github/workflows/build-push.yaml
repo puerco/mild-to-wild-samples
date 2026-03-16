@@ -83,16 +83,15 @@ jobs:
       - name: Add base image to provenance and push attestation
         if: github.event_name != 'pull_request'
         run: |
-          # Extract the in-toto statement from the bundle
+          # Extract the predicate from the bundle
           BUNDLE="${{ steps.attest.outputs.bundle-path }}"
-          echo "Bundle structure:" && jq 'keys' "$BUNDLE"
-          STATEMENT=$(jq -r '.dsseEnvelope.payload // .content.envelope.payload' "$BUNDLE" | base64 -d)
+          PREDICATE=$(jq -r '.dsseEnvelope.payload // .content.envelope.payload' "$BUNDLE" | base64 -d | jq '.predicate')
 
           # Add the base image to resolvedDependencies
-          UPDATED=$(echo "$STATEMENT" | jq \
+          UPDATED=$(echo "$PREDICATE" | jq \
             --arg uri "${{ steps.base.outputs.ref }}" \
             --arg digest "${{ steps.base.outputs.digest }}" \
-            '.predicate.buildDefinition.resolvedDependencies += [{"uri": $uri, "digest": {"sha256": ($digest | ltrimstr("sha256:"))}}]')
+            '.buildDefinition.resolvedDependencies += [{"uri": $uri, "digest": {"sha256": ($digest | ltrimstr("sha256:"))}}]')
 
           # Write updated statement to file
           echo "$UPDATED" > /tmp/provenance.json
