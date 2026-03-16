@@ -38,6 +38,7 @@ jobs:
           containerfiles: ./Containerfile
           image: ${{ env.IMAGE_NAME }}
           tags: latest ${{ github.sha }}
+          oci: true
 
       - name: Install cosign
         if: github.event_name != 'pull_request'
@@ -60,11 +61,3 @@ jobs:
           subject-name: ${{ env.IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
-
-      - name: Push attestation to registry
-        if: github.event_name != 'pull_request'
-        run: |
-          cosign attest --yes --type slsaprovenance \
-            --predicate "${{ steps.attest.outputs.bundle-path }}" \
-            --new-bundle-format \
-            "${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}"
