@@ -45,7 +45,7 @@ jobs:
 
       - name: Install crane
         if: github.event_name != 'pull_request'
-        uses: imjasonh/setup-crane@v0.4
+        uses: imjasonh/setup-crane@6da1ae018866400525525ce74ff892880c099987 # v0.5
 
       - name: Install cosign
         if: github.event_name != 'pull_request'
@@ -84,7 +84,9 @@ jobs:
         if: github.event_name != 'pull_request'
         run: |
           # Extract the in-toto statement from the bundle
-          STATEMENT=$(jq '.content.envelope.payload' -r "${{ steps.attest.outputs.bundle-path }}" | base64 -d)
+          BUNDLE="${{ steps.attest.outputs.bundle-path }}"
+          echo "Bundle structure:" && jq 'keys' "$BUNDLE"
+          STATEMENT=$(jq -r '.dsseEnvelope.payload // .content.envelope.payload' "$BUNDLE" | base64 -d)
 
           # Add the base image to resolvedDependencies
           UPDATED=$(echo "$STATEMENT" | jq \
