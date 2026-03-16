@@ -1,6 +1,7 @@
 name: Build and Push Image
 
 on:
+  workflow_dispatch: 
   push:
     branches: [main]
   pull_request:
@@ -15,6 +16,8 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
+      attestations: write
 
     steps:
       - name: Checkout
@@ -36,10 +39,32 @@ jobs:
           image: ${{ env.IMAGE_NAME }}
           tags: latest ${{ github.sha }}
 
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@ba7bc0a3fef59531c69a25acd34668d6d3fe6f22 # v4.1.0
+
       - name: Push image
+        id: push
         if: github.event_name != 'pull_request'
         uses: redhat-actions/push-to-registry@5ed88d269cf581ea9ef6dd6806d01562096bee9c # v2.8
         with:
           image: ${{ steps.build.outputs.image }}
           tags: ${{ steps.build.outputs.tags }}
           registry: ghcr.io
+
+      - name: Generate SLSA provenance
+        id: attest
+        if: github.event_name != 'pull_request'
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: false
+
+      - name: Push attestation to registry
+        if: github.event_name != 'pull_request'
+        run: |
+          cosign attest --yes --type slsaprovenance \
+            --predicate "${{ steps.attest.outputs.bundle-path }}" \
+            --new-bundle-format \
+            "${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}"
