@@ -1,13 +1,11 @@
 # Sample EnterpriseContractPolicy for the Medium level.
 #
-# Same SLSA checks as Wild, but without trusted task verification.
-# This produces a VSA at SLSA Build Level 2.
+# Same SLSA checks as mild, plus verification of the built image.
+# Medium verifies both the base image and the built image, then
+# produces a VSA at SLSA Build Level 2.
 #
-# Usage:
-#   ec validate image \
-#     --image <IMAGE_REF> \
-#     --policy 2-medium/conforma/policy.yaml \
-#     --public-key <KEY>
+# Supports both Tekton Chains (key-based) and GitHub Actions (keyless)
+# builds. See the README for full invocation examples.
 apiVersion: appstudio.redhat.com/v1alpha1
 kind: EnterpriseContractPolicy
 metadata:
@@ -24,8 +22,10 @@ spec:
       ruleData:
         allowed_builder_ids:
           - "https://github.com/arewm/mild-to-wild-samples/tekton-build"
+          - "https://github.com/puerco/mild-to-wild-samples/.github/workflows/build-push.yaml@refs/heads/main"
         allowed_build_types:
           - "https://tekton.dev/chains/v2/slsa"
+          - "https://actions.github.io/buildtypes/workflow/v1"
       config:
         include:
           # Mild rules
