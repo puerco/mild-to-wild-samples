@@ -2,7 +2,10 @@
 
 Verifies the base image (e.g. UBI) used in the Containerfile. Two custom rules check that SLSA provenance is present and that the buildType matches an allowlist. The remaining checks — builder identity, source materials, and external parameters — come from the upstream Conforma policy library (`slsa_build_build_service`, `slsa_source_version_controlled`, `external_parameters`).
 
-The base image uses two different signing keys (Red Hat's release3 key for the image signature and Konflux's p02 key for the provenance attestation), so verification requires two steps.
+The base image uses two different signing keys, so verification requires two steps:
+
+- **`cosign-release.pub`** — Red Hat's [release3 key](https://access.redhat.com/security/team/key/#702D426D) for the image signature
+- **`cosign-provenance.pub`** — the Chains key that signed the provenance attestation
 
 ## Usage
 

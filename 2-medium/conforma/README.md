@@ -27,7 +27,7 @@ Pass 2 — Verify the built image. For Tekton Chains (key-based):
 ec validate image \
   --image <BUILT_IMAGE_REF> \
   --policy 2-medium/conforma/policy.yaml \
-  --public-key <CHAINS_PUBLIC_KEY> \
+  --public-key 3-wild/conforma/cosign-chains.pub \
   --ignore-rekor
 ```
 
