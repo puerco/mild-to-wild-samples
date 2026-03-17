@@ -29,12 +29,11 @@ spec:
         # Custom mild rules: provenance present + build type check
         - github.com/arewm/mild-to-wild-samples//1-mild/conforma?ref=main
       ruleData:
-        # Accepted builder IDs for SLSA provenance
+        # Konflux / Red Hat Chains defaults for UBI base images
         allowed_builder_ids:
-          - "https://github.com/arewm/mild-to-wild-samples/tekton-build"
-        # Accepted build types
+          - "https://tekton.dev/chains/v2"
         allowed_build_types:
-          - "https://tekton.dev/chains/v2/slsa"
+          - "tekton.dev/v1/PipelineRun"
       config:
         include:
           # Custom mild rules

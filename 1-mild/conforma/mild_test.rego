@@ -9,12 +9,12 @@ import data.mild
 
 test_provenance_present_v02 if {
 	lib.assert_empty(mild.deny) with input.attestations as [_mock_provenance_v02]
-		with data.rule_data__ as _rule_data_v02
+		with data.rule_data_custom as _rule_data_v02
 }
 
 test_provenance_present_v1 if {
 	lib.assert_empty(mild.deny) with input.attestations as [_mock_provenance_v1]
-		with data.rule_data__ as _rule_data_v1
+		with data.rule_data_custom as _rule_data_v1
 }
 
 test_provenance_missing if {
@@ -29,12 +29,12 @@ test_provenance_missing if {
 
 test_build_type_accepted_v1 if {
 	lib.assert_empty(mild.deny) with input.attestations as [_mock_provenance_v1]
-		with data.rule_data__ as _rule_data_v1
+		with data.rule_data_custom as _rule_data_v1
 }
 
 test_build_type_accepted_v02 if {
 	lib.assert_empty(mild.deny) with input.attestations as [_mock_provenance_v02]
-		with data.rule_data__ as _rule_data_v02
+		with data.rule_data_custom as _rule_data_v02
 }
 
 test_build_type_rejected if {
@@ -50,7 +50,7 @@ test_build_type_rejected if {
 		"msg": "Build type https://example.com/unknown-builder is not in the list of accepted build types",
 	}}
 	lib.assert_equal_results(mild.deny, expected) with input.attestations as [bad]
-		with data.rule_data__ as _rule_data_v1
+		with data.rule_data_custom as _rule_data_v1
 }
 
 # Mock data
