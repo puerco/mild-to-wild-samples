@@ -28,7 +28,16 @@ import data.lib.tekton
 warn contains result if {
 	some att in lib.pipelinerun_attestations
 	tasks := tekton.tasks(att)
-	untrusted := tekton.untrusted_task_refs(tasks)
+
+	# Collect bundle refs and fetch manifests for version constraint checking
+	bundle_refs := {ref |
+		some task in tasks
+		ref := tekton.task_ref(task).bundle
+		ref != ""
+	}
+	manifests := ec.oci.image_manifests(bundle_refs)
+
+	untrusted := tekton.untrusted_task_refs(tasks, manifests)
 	count(untrusted) > 0
 
 	some task in untrusted
@@ -37,7 +46,19 @@ warn contains result if {
 	result := lib.result_helper(rego.metadata.chain(), [bundle_ref])
 }
 
-# TaskRun provenance (SLSA v1): check resolved task dependency
+# METADATA
+# title: All task bundles are trusted
+# description: >-
+#   For TaskRun provenance (SLSA v1), checks the resolved task
+#   dependency against trusted_task_refs rule data.
+# custom:
+#   short_name: all_tasks_trusted
+#   failure_msg: "Untrusted task found: %s"
+#   solution: >-
+#     Ensure the task reference is listed in the trusted_task_refs
+#     configuration.
+#   collections:
+#   - minimal
 warn contains result if {
 	some att in lib.slsa_provenance_attestations
 	att.statement.predicateType == "https://slsa.dev/provenance/v1"

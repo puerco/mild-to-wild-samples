@@ -36,7 +36,7 @@ test_pipelinerun_untrusted_task_warns if {
 test_taskrun_trusted_ref_pass if {
 	trusted_task_refs := [{"uri": "git+https://github.com/arewm/mild-to-wild-samples", "digest": {"sha1": "abc123"}}]
 	lib.assert_empty(wild.warn) with input.attestations as [_mock_taskrun_v1("git+https://github.com/arewm/mild-to-wild-samples", "abc123")]
-		with data.rule_data__ as {"trusted_task_refs": trusted_task_refs}
+		with data.rule_data_custom as {"trusted_task_refs": trusted_task_refs}
 }
 
 # TaskRun provenance: untrusted git resolver ref warns
@@ -48,7 +48,7 @@ test_taskrun_untrusted_ref_warns if {
 		"msg": "Untrusted task found: git+https://github.com/other/repo",
 	}}
 	lib.assert_equal_results(wild.warn, expected) with input.attestations as [_mock_taskrun_v1("git+https://github.com/other/repo", "def456")]
-		with data.rule_data__ as {"trusted_task_refs": trusted_task_refs}
+		with data.rule_data_custom as {"trusted_task_refs": trusted_task_refs}
 }
 
 # TaskRun provenance: wrong digest warns
@@ -60,7 +60,7 @@ test_taskrun_wrong_digest_warns if {
 		"msg": "Untrusted task found: git+https://github.com/arewm/mild-to-wild-samples",
 	}}
 	lib.assert_equal_results(wild.warn, expected) with input.attestations as [_mock_taskrun_v1("git+https://github.com/arewm/mild-to-wild-samples", "wrong")]
-		with data.rule_data__ as {"trusted_task_refs": trusted_task_refs}
+		with data.rule_data_custom as {"trusted_task_refs": trusted_task_refs}
 }
 
 # No Tekton provenance: warns about missing task refs
@@ -95,7 +95,7 @@ test_no_attestations_warns if {
 test_taskrun_with_task_dep_no_missing_warning if {
 	trusted_task_refs := [{"uri": "git+https://github.com/other/repo", "digest": {"sha1": "abc"}}]
 	warnings := wild.warn with input.attestations as [_mock_taskrun_v1("git+https://github.com/arewm/mild-to-wild-samples", "abc123")]
-		with data.rule_data__ as {"trusted_task_refs": trusted_task_refs}
+		with data.rule_data_custom as {"trusted_task_refs": trusted_task_refs}
 	codes := {w.code | some w in warnings}
 	not "wild.pipelinerun_provenance_for_trusted_tasks" in codes
 }
