@@ -1,0 +1,160 @@
+{
+    id: fritoto-gate-publish,
+    meta: {
+        description: 
+'''
+# fritoto-gate-publish
+
+Ensures the SLSA level of the built image and ita base image.
+
+## Purpose
+
+This PolicySet verifies the SLSA build attestation of each of the binaries and
+the project's dependencies (builder and source) according to the SLSA spec.
+
+This set has five policies. The first verify the build provenance of each binary.
+
+The. next policy chains the build provenance to the build point commit and
+checks its SLSA source attestations to verify it is SLSA Source Level 3. 
+
+Finally, we verify the VSA capturing the SLSA Build verification results from the
+build image policy.
+
+This policy generates the verification summaries (VSAs) that users will be able
+to use to check the binaries.
+
+'''
+        frameworks: [
+            {
+                id: "SLSA",
+                name: "Supply-Chain Levels for Software Artifacts"
+            }
+        ]
+    },
+    common: {
+        context: {
+            // buildPoint captures the build point base. This value can be
+            // pinned to a commit but since it is "baked" in the policy code
+            // we define the VCS locator of the repo without a commit to match
+            // the repo on any revision.
+            buildPoint: {
+                value: "git+https://github.com/puerco/mild-to-wild-samples"
+            },
+            // Builder ID is set to the repository workflow URL.
+            builderId: {
+                value: "https://github.com/puerco/mild-to-wild-samples/.github/workflows/build-push.yaml@refs/heads/main"
+            },
+            // The build type specifies we are using github actions. 
+            buildType: {
+                value: "https://actions.github.io/buildtypes/workflow/v1"
+            }
+        },
+        
+    },
+    // The first three policies verify the provenance atteatstion of the image.
+    // We check that they were built by the CI in our repo.
+    policies: [
+        {
+            // Verify the builder was done in our repository
+            id: "slsa-builder-id",
+            source: {
+                location: { uri: "git+https://github.com/carabiner-dev/policies#slsa/slsa-builder-id.json" }
+            },
+            meta: { controls: [ { framework: "SLSA", class: "BUILD", id: "LEVEL_2" } ] },
+            identities: [
+            {
+                // The workload identity of this repository.
+                sigstore: {
+                    mode: "regexp",
+                    issuer: "https://token.actions.githubusercontent.com",
+                    identity: "https://github.com/[-a-z]+/mild-to-wild-samples/.github/workflows/build-push.yaml@refs/heads/main",
+                }
+            }
+            ]
+        },
+        {
+            // Check it was built on GotHub actions
+            id: "slsa-build-type",
+            source: {
+                location: { "uri": "git+https://github.com/carabiner-dev/policies#slsa/slsa-build-type.json" }
+            },
+            meta: { controls: [ { framework: "SLSA", class: "BUILD", id: "LEVEL_2" } ] },
+            identities: [
+                {
+                    // The workload identity of this repository.
+                    sigstore: {
+                        mode: "regexp",
+                        issuer: "https://token.actions.githubusercontent.com",
+                        identity: "https://github.com/[-a-z]+/mild-to-wild-samples/.github/workflows/build-push.yaml@refs/heads/main",
+                    }
+                }
+            ]
+        },
+        {
+            // This verifies that the binaries were build on the
+            // specific commit.
+            id: "slsa-build-point",
+            source: {
+                location: { uri: "git+https://github.com/carabiner-dev/policies#slsa/slsa-build-point.json" }
+            },
+            meta: {
+                controls: [ { framework: "SLSA", class: "BUILD", id: "LEVEL_2" } ],
+                enforce: ON
+            },
+            identities: [
+                {
+                    // The workload identity of this repository.
+                    sigstore: {
+                        mode: "regexp",
+                        issuer: "https://token.actions.githubusercontent.com",
+                        identity: "https://github.com/[-a-z]+/mild-to-wild-samples/.github/workflows/build-push.yaml@refs/heads/main",
+                    }
+                }
+            ]
+        },
+        {
+            // Verify the builder image. 
+            // As we already did the full verification, this step checks the VSA
+            // as it provides the summary of the previous verification results.
+            id: slsa-builder-image,
+            source: {
+                location: { uri: "git+https://github.com/carabiner-dev/policies#vsa/slsa-build-level3.json" }
+            },
+            context: {
+                // This is the image location
+                baseImage: {
+                    required: true,
+                    type: "string",
+                    default: registry.access.redhat.com/ubi10/ubi-minimal
+                }
+            },
+            chain: [
+                {
+                    // Same as above, we chain the build provenance to extract
+                    // the digest of the image. 
+                    predicate: {
+                        type: "https://slsa.dev/provenance/v1",
+                        
+                        // The selector queries the resolvedDependencies to 
+                        // look for the dependecy data.
+                        selector: '''
+                            has(predicate.data.buildDefinition) ? (
+                                has(predicate.data.buildDefinition.resolvedDependencies) ? (
+                                    predicate.data.buildDefinition.resolvedDependencies.map(dep, dep.uri.startsWith(context.baseImage ), "sha256:" + dep.digest["sha256"])[0]
+                                ) : '' 
+                            ) : ''
+                        '''
+                    }
+                }
+            ],
+            // identities:[
+            //     {
+            //         sigstore: {
+            //             issuer: "https://token.actions.githubusercontent.com",
+            //             identity: "https://github.com/slsa-framework/source-actions/.github/workflows/compute_slsa_source.yml@refs/heads/main"
+            //         }
+            //     }
+            // ]
+        }
+    ]
+}
