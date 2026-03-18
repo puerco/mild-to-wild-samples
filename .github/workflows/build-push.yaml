@@ -98,7 +98,7 @@ jobs:
 
           cat /tmp/provenance.json | jq
 
-          cosign attest --yes --type https://slsa.dev/provenance/v1 \
-            --new-bundle-format=false \
+          cosign attest --yes \
+            --type https://slsa.dev/provenance/v1 \
             --predicate /tmp/provenance.json \
             "${{ env.IMAGE_NAME }}@${{ steps.push.outputs.digest }}"
