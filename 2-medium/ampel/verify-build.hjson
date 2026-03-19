@@ -1,28 +1,30 @@
 {
-    id: fritoto-gate-publish,
+    id: set-image-verification
     meta: {
         description: 
 '''
-# fritoto-gate-publish
+# Image Verification Policy Set
 
-Ensures the SLSA level of the built image and ita base image.
+Ensures an image matches a SLSA level in its build process and ensures its
+dependencies are also SLSA verified.
 
 ## Purpose
 
-This PolicySet verifies the SLSA build attestation of each of the binaries and
-the project's dependencies (builder and source) according to the SLSA spec.
+This PolicySet verifies the SLSA build attestation of our container image.
+It also verifies its dependencies according to the SLSA spec. In this case the
+only dependency is its base image.
 
-This set has five policies. The first verify the build provenance of each binary.
+This set has four policies. The first three verify the build provenance of our
+built image.
 
-The. next policy chains the build provenance to the build point commit and
-checks its SLSA source attestations to verify it is SLSA Source Level 3. 
+The fourth chains our image's build provenance to the base image verification
+summary or "VSA".  This is a summary of the verification we did on our base
+image's provenance attestation.
 
-Finally, we verify the VSA capturing the SLSA Build verification results from the
-build image policy.
-
-This policy generates the verification summaries (VSAs) that users will be able
-to use to check the binaries.
-
+When running in AMPEL, this policy can generate a verification summary (VSAs)
+for our built image (--format=vsa is your friend). End users can use the VSA
+to quickly validate the checks we did without analyzing all the previous
+attestations and rerunning the policies.
 '''
         frameworks: [
             {
@@ -63,7 +65,8 @@ to use to check the binaries.
             meta: { controls: [ { framework: "SLSA", class: "BUILD", id: "LEVEL_2" } ] },
             identities: [
             {
-                // The workload identity of this repository.
+                // The signer identity is the workload identity of this repository.
+                // it uses a regexp to allow the policy to work on forks
                 sigstore: {
                     mode: "regexp",
                     issuer: "https://token.actions.githubusercontent.com",
@@ -73,7 +76,7 @@ to use to check the binaries.
             ]
         },
         {
-            // Check it was built on GotHub actions
+            // Ensure our image was built on GitHub actions.
             id: "slsa-build-type",
             source: {
                 location: { "uri": "git+https://github.com/carabiner-dev/policies#slsa/slsa-build-type.json" }
@@ -81,7 +84,6 @@ to use to check the binaries.
             meta: { controls: [ { framework: "SLSA", class: "BUILD", id: "LEVEL_2" } ] },
             identities: [
                 {
-                    // The workload identity of this repository.
                     sigstore: {
                         mode: "regexp",
                         issuer: "https://token.actions.githubusercontent.com",
@@ -91,8 +93,8 @@ to use to check the binaries.
             ]
         },
         {
-            // This verifies that the binaries were build on the
-            // specific commit.
+            // This policy verifies that the image was built from the specific
+            // repository and optionally a commit. 
             id: "slsa-build-point",
             source: {
                 location: { uri: "git+https://github.com/carabiner-dev/policies#slsa/slsa-build-point.json" }
@@ -103,7 +105,6 @@ to use to check the binaries.
             },
             identities: [
                 {
-                    // The workload identity of this repository.
                     sigstore: {
                         mode: "regexp",
                         issuer: "https://token.actions.githubusercontent.com",
@@ -113,15 +114,28 @@ to use to check the binaries.
             ]
         },
         {
-            // Verify the builder image. 
+            // Verify the base image SLSA level.
+            //
             // As we already did the full verification, this step checks the VSA
-            // as it provides the summary of the previous verification results.
-            id: slsa-builder-image,
+            // of the base image verification to ensure it is SLSA Level 2.
+            // The VSA provides the summary of the base image verification results. 
+            // 
+            // Since AMPEL is verifying the build image (not the base), we need
+            // to chain the predicates to find the VSA, the chain looks like this:
+            //
+            //   ampel verify  subject  >  Provenance (SLSA v1) > new subject
+            //               (built image)   -- dependency ->     (base image)
+            //                               -- selector   -> 
+            //
+            // By applying a selector to our image's build provenance, we can find
+            // the digest of its base image and the collector can look for its VSA. 
+            //
+            id: verify-base-image
             source: {
-                location: { uri: "git+https://github.com/carabiner-dev/policies#vsa/slsa-build-level3.json" }
+                location: { uri: "git+https://github.com/carabiner-dev/policies#vsa/slsa-build-level2.json" }
             },
             context: {
-                // This is the image location
+                // This is the base image reference
                 baseImage: {
                     required: true,
                     type: "string",
@@ -135,8 +149,10 @@ to use to check the binaries.
                     predicate: {
                         type: "https://slsa.dev/provenance/v1",
                         
-                        // The selector queries the resolvedDependencies to 
-                        // look for the dependecy data.
+                        // The selector queries the resolvedDependencies in our
+                        // built image's provenance to look for the base image
+                        // digest, which in turn becomes the new subject and we
+                        // then can look for its VSA.
                         selector: '''
                             has(predicate.data.buildDefinition) ? (
                                 has(predicate.data.buildDefinition.resolvedDependencies) ? (
@@ -147,6 +163,14 @@ to use to check the binaries.
                     }
                 }
             ],
+            //
+            // As we are doing a demo with an unsigned VSA for the chain, here we
+            // cannot verify the attestation identity as this would enforce signature
+            // verification in the chained predicates.
+            //
+            // If you are chaining with signed attestations, then you can uncomment
+            // the identities to verify the signer.
+            //
             // identities:[
             //     {
             //         sigstore: {
